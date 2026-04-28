@@ -85,8 +85,6 @@ select.form-control{appearance:auto}
 .calendar-day.weekday-header{background:#e3f2fd;font-weight:bold;padding:6px 3px;border:none;transform:none;font-size:.8em}
 .day-number{font-weight:bold;margin-bottom:1px}
 .day-points{font-size:.7em;opacity:.8}
-
-/* 兑换记录 */
 .redeem-log{background:#fff;border-radius:18px;padding:20px;margin-bottom:24px;box-shadow:0 8px 25px rgba(0,0,0,.08)}
 .redeem-log h3{font-size:1.1em;margin-bottom:12px}
 .redeem-log-empty{color:#bbb;text-align:center;padding:20px;font-size:.9em}
@@ -97,7 +95,6 @@ select.form-control{appearance:auto}
 .redeem-clear{text-align:right;margin-top:10px}
 .redeem-clear button{background:none;border:none;color:#999;font-size:.8em;cursor:pointer;text-decoration:underline}
 .redeem-clear button:hover{color:#e53935}
-
 .modal-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center}
 .modal-overlay.active{display:flex}
 .modal{background:#fff;border-radius:20px;padding:28px;max-width:500px;width:92%;max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.3)}
@@ -130,9 +127,10 @@ hr{margin:18px 0;border:none;border-top:1px solid #eee}
 <div class="student-info">
 <div class="avatar" id="avatarDisplay">👦</div>
 <div class="stats">
-<h3 id="childNameDisplay">豆豆同学</h3>
-<p>🏆 当前积分: <span id="totalPoints">0</span> 分</p>
+<h3 id="childNameDisplay">小达人</h3>
 <p>📅 连续打卡: <span id="streakDays">0</span> 天</p>
+<p>📊 当日积分: <span id="todayPoints">0</span> 分</p>
+<p>🏆 累积积分: <span id="totalPoints">0</span> 分</p>
 </div>
 </div>
 </div>
@@ -185,7 +183,7 @@ hr{margin:18px 0;border:none;border-top:1px solid #eee}
 <div class="progress-section">
 <h2>📊 今日进度</h2>
 <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:0%">0%</div></div>
-<p>已完成 <span id="completedTasks">0</span> / <span id="totalTasks">0</span> 个任务</p>
+<p>已完成 <span id="completedTasks">0</span> / <span id="totalTasks">0</span> 个任务 &nbsp;|&nbsp; 今日积分: <span id="todayPoints2">0</span> 分</p>
 <h3 style="margin-top:22px">📅 本月打卡</h3>
 <div class="calendar" id="calendar"></div>
 </div>
@@ -231,8 +229,30 @@ hr{margin:18px 0;border:none;border-top:1px solid #eee}
 </div>
 
 <script>
+// ===== 默认数据（先定义，不依赖任何存储）=====
+var DEFAULT_BASIC_TASKS = [
+ {id:'b1',name:'完成作业',desc:'认真完成作业',pts:15,tier:'basic'},
+ {id:'b2',name:'阅读30分钟',desc:'阅读课外书',pts:10,tier:'basic'},
+ {id:'b3',name:'整理书包',desc:'准备好明天用品',pts:5,tier:'basic'},
+ {id:'b4',name:'帮忙做家务',desc:'做一件家务事',pts:8,tier:'basic'}
+]
+var DEFAULT_ADV_TASKS = [
+ {id:'a1',name:'练习乐器',desc:'练习乐器',pts:12,tier:'advanced'},
+ {id:'a2',name:'运动锻炼',desc:'户外或室内运动',pts:10,tier:'advanced'},
+ {id:'a3',name:'完成课外作业',desc:'课外辅导作业',pts:15,tier:'advanced'},
+ {id:'a4',name:'兴趣班课程',desc:'兴趣班课程',pts:15,tier:'advanced'}
+]
+var DEFAULT_REWARDS = [
+ {id:'r1',name:'看动画片',pts:40,desc:'放松时间'},
+ {id:'r2',name:'吃冰激淋',pts:30,desc:'美味奖励'},
+ {id:'r3',name:'拆卡牌5包',pts:50,desc:'卡牌奖励'},
+ {id:'r4',name:'买新玩具',pts:150,desc:'大奖励'},
+ {id:'r5',name:'去汤姆熊',pts:200,desc:'特别奖励'}
+]
+
 // ===== 存储键 =====
-var SCK='zdou_scfg',USK='zdou_users',CCK='zdou_ccid',supabaseClient=null
+var SCK='zd_scfg',USK='zd_users',CCK='zd_ccid'
+var supabaseClient=null
 
 function gSC(){try{return JSON.parse(localStorage.getItem(SCK))||{}}catch(e){return{}}}
 function initSupabase(){
@@ -255,12 +275,12 @@ function gU(){try{return JSON.parse(localStorage.getItem(USK))||[]}catch(e){retu
 function sU(u){localStorage.setItem(USK,JSON.stringify(u))}
 function gCUID(){return localStorage.getItem(CCK)}
 function sCUID(i){localStorage.setItem(CCK,i)}
-function dU(){return[{id:'dd',name:'豆豆',avatar:'👦'}]}
+function defUsers(){return[{id:'dd',name:'小达人',avatar:'👦'}]}
 function gCU(){var u=gU(),i=gCUID();return u.find(function(x){return x.id===i})||u[0]||null}
-function sk(b){var u=gCU();return 'zd_'+(u?u.id:'d')+'_'+b}
+function sk(b){var u=gCU();return 'zd3_'+(u?u.id:'d')+'_'+b}
 
 function iU(){
- var u=gU();if(!u.length){u=dU();sU(u)}
+ var u=gU();if(!u.length){u=defUsers();sU(u)}
  if(!gCUID())sCUID(u[0].id)
  rCS();rCM()
 }
@@ -289,19 +309,40 @@ function rCM(){
 function setSync(s,m){var b=document.getElementById('syncBar');b.className='sync-bar '+s;b.textContent=m}
 
 // ===== 数据 =====
-var tasks=[],rewards=[],completedDates={},redeemLogs=[],totalPoints=0,streakDays=0
-var dBT=[{id:'b1',name:'完成作业',desc:'认真完成作业',pts:15,tier:'basic'},{id:'b2',name:'阅读30分钟',desc:'阅读课外书',pts:10,tier:'basic'},{id:'b3',name:'整理书包',desc:'准备好明天用品',pts:5,tier:'basic'},{id:'b4',name:'帮忙做家务',desc:'做一件家务事',pts:8,tier:'basic'}]
-var dAT=[{id:'a1',name:'练习乐器',desc:'练习乐器',pts:12,tier:'advanced'},{id:'a2',name:'运动锻炼',desc:'户外或室内运动',pts:10,tier:'advanced'},{id:'a3',name:'完成课外作业',desc:'课外辅导作业',pts:15,tier:'advanced'},{id:'a4',name:'兴趣班课程',desc:'兴趣班课程',pts:15,tier:'advanced'}]
-var dRW=[{id:'r1',name:'看动画片',pts:40,desc:'放松时间'},{id:'r2',name:'吃冰激淋',pts:30,desc:'美味奖励'},{id:'r3',name:'拆卡牌5包',pts:50,desc:'卡牌奖励'},{id:'r4',name:'买新玩具',pts:150,desc:'大奖励'},{id:'r5',name:'去汤姆熊',pts:200,desc:'特别奖励'}]
+var tasks=[],rewards=[],completedDates={},redeemLogs=[],totalPoints=0,streakDays=0,todayPoints=0
 
+function todayStr(){return new Date().toISOString().slice(0,10)}
+function calcTodayPoints(){
+ var pts=0;tasks.forEach(function(t){if(t.completed)pts+=t.pts});return pts
+}
+
+// ✅ 读取本地数据，读取不到就用默认值
 function lL(){
- tasks=JSON.parse(localStorage.getItem(sk('t')))||[]
- rewards=JSON.parse(localStorage.getItem(sk('r')))||[]
+ var raw_tasks=localStorage.getItem(sk('t'))
+ if(raw_tasks){
+  try{
+   var parsed=JSON.parse(raw_tasks)
+   if(Array.isArray(parsed)&&parsed.length>0&&parsed[0].hasOwnProperty('pts')){tasks=parsed}
+   else{tasks=[]}
+  }catch(e){tasks=[]}
+ }else{tasks=[]}
+
+ var raw_rewards=localStorage.getItem(sk('r'))
+ if(raw_rewards){
+  try{
+   var parsed=JSON.parse(raw_rewards)
+   if(Array.isArray(parsed)&&parsed.length>0&&parsed[0].hasOwnProperty('pts')){rewards=parsed}
+   else{rewards=[]}
+  }catch(e){rewards=[]}
+ }else{rewards=[]}
+
  completedDates=JSON.parse(localStorage.getItem(sk('d')))||{}
  redeemLogs=JSON.parse(localStorage.getItem(sk('rl')))||[]
  totalPoints=parseInt(localStorage.getItem(sk('p')))||0
  streakDays=parseInt(localStorage.getItem(sk('s')))||0
+ todayPoints=calcTodayPoints()
 }
+
 function sL(){
  localStorage.setItem(sk('t'),JSON.stringify(tasks))
  localStorage.setItem(sk('r'),JSON.stringify(rewards))
@@ -310,11 +351,12 @@ function sL(){
  localStorage.setItem(sk('p'),totalPoints.toString())
  localStorage.setItem(sk('s'),streakDays.toString())
 }
+
+// ✅ 强制用默认数据填充
 function iD(){
- if(!tasks.length)
-  tasks=dBT.map(function(t){return{id:t.id,name:t.name,desc:t.desc,pts:t.pts,tier:t.tier,completed:false}})
-   .concat(dAT.map(function(t){return{id:t.id,name:t.name,desc:t.desc,pts:t.pts,tier:t.tier,completed:false}}))
- if(!rewards.length)rewards=JSON.parse(JSON.stringify(dRW))
+ tasks=DEFAULT_BASIC_TASKS.map(function(t){return{id:t.id,name:t.name,desc:t.desc,pts:t.pts,tier:t.tier,completed:false}})
+  .concat(DEFAULT_ADV_TASKS.map(function(t){return{id:t.id,name:t.name,desc:t.desc,pts:t.pts,tier:t.tier,completed:false}}))
+ rewards=JSON.parse(JSON.stringify(DEFAULT_REWARDS))
  sL()
 }
 
@@ -346,6 +388,7 @@ async function lFC(){
    completedDates=JSON.parse(data.completed_dates||'{}')
    redeemLogs=JSON.parse(data.redeem_logs||'[]')
    totalPoints=data.total_points||0;streakDays=data.streak_days||0
+   todayPoints=calcTodayPoints()
    sL();setSync('synced','☁️ 已加载');return 1
   }else{await sync2C();return 1}
  }catch(e){setSync('offline','📴 无法连接');return 0}
@@ -357,17 +400,19 @@ function toggleTask(id){
  t.completed=!t.completed
  if(t.completed){
   totalPoints+=t.pts
-  var td=new Date().toISOString().slice(0,10)
+  var td=todayStr()
   if(!completedDates[td]){completedDates[td]=1;streakDays++}
  }else{
   totalPoints-=t.pts
  }
+ todayPoints=calcTodayPoints()
  sL();rA();sync2C()
 }
 function redeemReward(id){
  var r=rewards.find(function(x){return x.id===id});if(!r||totalPoints<r.pts)return
  if(!confirm('兑换「'+r.name+'」？花费 '+r.pts+' 积分'))return
  totalPoints-=r.pts
+ todayPoints=calcTodayPoints()
  redeemLogs.push({name:r.name,pts:r.pts,date:new Date().toISOString().slice(0,19).replace('T',' ')})
  sL();rA();sync2C()
  alert('🎉 成功兑换 '+r.name+'！剩余 '+totalPoints+' 积分')
@@ -386,7 +431,7 @@ function resetAllData(){
  if(!confirm('确定重置「'+(gCU()?gCU().name:'')+'」的所有数据？'))return
  if(!confirm('♻️ 再次确认：积分、打卡、兑换记录都会清除'))return
  ['t','r','d','rl','p','s'].forEach(function(k){localStorage.removeItem(sk(k))})
- tasks=[];rewards=[];completedDates={};redeemLogs=[];totalPoints=0;streakDays=0
+ tasks=[];rewards=[];completedDates={};redeemLogs=[];totalPoints=0;streakDays=0;todayPoints=0
  iD();rA();if(supabaseClient)sync2C()
 }
 
@@ -409,6 +454,7 @@ function importData(e){
     completedDates=d.data.completedDates||completedDates
     redeemLogs=d.data.redeemLogs||redeemLogs
     totalPoints=d.data.totalPoints||0;streakDays=d.data.streakDays||0
+    todayPoints=calcTodayPoints()
     sL();rA();if(supabaseClient)sync2C();alert('✅ 导入成功！')
    }else alert('❌ 文件格式不对')
   }catch(err){alert('❌ 导入失败：文件格式错误')}
@@ -428,7 +474,8 @@ function switchAddTab(t){
 function rA(){rT();rR();rRL();rS();rP();rC()}
 
 function rT(){
- var be=document.getElementById('basicTasks'),ae=document.getElementById('advancedTasks');be.innerHTML='';ae.innerHTML=''
+ var be=document.getElementById('basicTasks'),ae=document.getElementById('advancedTasks')
+ be.innerHTML='';ae.innerHTML=''
  tasks.forEach(function(t){
   var li=document.createElement('li');li.className='task-item'+(t.completed?' completed':'')
   li.innerHTML='<input type="checkbox" class="task-checkbox"'+(t.completed?' checked':'')+'><div class="task-content"><div class="task-name">'+esc(t.name)+'</div><div class="task-desc">'+esc(t.desc)+'</div></div><div class="task-points">+'+t.pts+'分</div>'
@@ -456,8 +503,11 @@ function rRL(){
 }
 
 function rS(){
- var u=gCU();if(u){document.getElementById('childNameDisplay').textContent=u.name+'同学';document.getElementById('avatarDisplay').textContent=u.avatar}
- document.getElementById('totalPoints').textContent=totalPoints;document.getElementById('streakDays').textContent=streakDays
+ var u=gCU();if(u){document.getElementById('childNameDisplay').textContent=u.name;document.getElementById('avatarDisplay').textContent=u.avatar}
+ document.getElementById('totalPoints').textContent=totalPoints
+ document.getElementById('streakDays').textContent=streakDays
+ document.getElementById('todayPoints').textContent=todayPoints
+ document.getElementById('todayPoints2').textContent=todayPoints
 }
 
 function rP(){
@@ -486,7 +536,13 @@ function openSettings(){
 }
 function closeSettings(){document.getElementById('settingsModal').classList.remove('active')}
 
-async function lAD(){lL();iD();rA();if(supabaseClient)await lFC();rA()}
+// ✅ 启动：先尝试读本地，如果任务为空就用默认数据填充
+async function lAD(){
+ lL()
+ if(!tasks.length||!rewards.length){iD()}
+ rA()
+ if(supabaseClient){await lFC();rA()}
+}
 
 document.getElementById('addTaskForm').addEventListener('submit',function(e){
  e.preventDefault()

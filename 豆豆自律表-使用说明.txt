@@ -1,0 +1,130 @@
+# 🌟 豆豆自律表 - 云同步版
+
+小学生每日自律任务管理系统，支持多孩子、云同步、多设备共享数据。
+
+## 功能特点
+
+- 📚 三层任务系统（基础任务 / 进阶任务 / 奖励兑换）
+- 👶 支持多个孩子（兄弟姐妹各用各的）
+- ☁️ 云端同步（可选，配了后手机、平板、电脑数据自动同步）
+- 📴 离线可用（没网也能用，有网自动同步）
+- 📅 月度打卡日历
+- 🏆 积分累计 + 连续打卡统计
+
+## 部署到 GitHub Pages（免费）
+
+### 第一步：注册 GitHub
+
+1. 打开 https://github.com 注册账号
+2. 验证邮箱
+
+### 第二步：创建仓库
+
+1. 点右上角 `+` → `New repository`
+2. 仓库名填：`zdou-self-discipline`
+3. 选 **Public**（公开，免费）
+4. 点 `Create repository`
+
+### 第三步：上传文件
+
+1. 在新页面点 `uploading an existing file`
+2. 把 `index.html` 拖进去
+3. 下面写点备注：`首次上传`
+4. 点 `Commit changes`
+
+### 第四步：开启 Pages
+
+1. 进仓库页面，点 `Settings`
+2. 左侧菜单点 `Pages`
+3. Source 选 `Deploy from a branch`
+4. Branch 选 `main`，目录 `/ (root)`
+5. 点 `Save`
+6. 等 1-2 分钟刷新页面，出现一行蓝字：
+   ```
+   Your site is live at https://你的用户名.github.io/zdou-self-discipline/
+   ```
+
+✅ 完成！这个链接复制给家里人，所有人都能打开用了。
+
+## 配置云端同步（可选但推荐）
+
+不配也能用，数据存在浏览器的 localStorage 里。但换手机、清缓存数据就没了。
+
+配上 Supabase 云存储后，所有设备数据自动同步。
+
+### 注册 Supabase（免费）
+
+1. 打开 https://supabase.com 点 `Start your project`
+2. 用 GitHub 账号登录授权
+3. 创建一个组织（随便起名）
+4. 创建一个项目：
+   - 项目名：`zdou-self-discipline`
+   - Database Password：记住它（后面用不到）
+   - Region：选 `Singapore`（离中国近）
+5. 等几分钟初始化完成
+
+### 获取配置信息
+
+1. 项目首页 → 左侧 `Project Settings` → `API`
+2. 复制这两样：
+   - **Project URL**（像 `https://xxxxx.supabase.co`）
+   - **anon public key**（一串很长的字符）
+
+### 创建数据库表
+
+1. 左侧菜单点 `SQL Editor`
+2. 点 `New query`
+3. 粘贴下面的 SQL 语句：
+
+```sql
+-- 创建数据表
+CREATE TABLE zdou_data (
+  user_id TEXT PRIMARY KEY,
+  user_name TEXT,
+  user_avatar TEXT,
+  tasks TEXT DEFAULT '[]',
+  rewards TEXT DEFAULT '[]',
+  completed_dates TEXT DEFAULT '{}',
+  total_points INTEGER DEFAULT 0,
+  streak_days INTEGER DEFAULT 0,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 允许匿名访问（配合 anon key）
+ALTER TABLE zdou_data ENABLE ROW LEVEL SECURITY;
+
+-- 允许所有人读写（家庭场景，安全够用）
+CREATE POLICY "允许所有人操作" ON zdou_data
+  FOR ALL USING (true) WITH CHECK (true);
+```
+
+4. 点 `Run` 执行
+
+### 配置到自律表
+
+1. 打开自律表网页
+2. 点右上角 ⚙️ 设置
+3. 填入 Supabase URL 和 anon key
+4. 点「保存配置」
+5. 页面顶部显示 `☁️ 数据已同步`
+
+以后在其他设备打开同一个链接，同样配一次，所有数据就同步了。
+
+## 日常使用
+
+- **切换孩子**：顶部按钮直接点
+- **完成任务**：勾选任务前面的框
+- **兑换奖励**：点击奖励卡片的「兑换」按钮
+- **添加任务**：下方表单填写
+- **添加孩子**：设置里添加
+
+## 本地打开（不发布也可以）
+
+直接用浏览器打开 `index.html` 就能用，所有功能正常，只是没有云同步。
+
+## 技术说明
+
+- 纯前端，零依赖（除了 Supabase JS SDK）
+- 数据存 localStorage + Supabase
+- 先读本地再同步云端，加载快
+- 每个孩子数据独立隔离
